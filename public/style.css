@@ -564,6 +564,132 @@ body {
   box-shadow: 0 0 16px rgba(88, 166, 255, 0.2);
 }
 
+/* ── Filters ────────────────────────────────────────────────────── */
+
+#filtros {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: clamp(0.65rem, 1.5vw, 0.9rem) 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.filtro-fila {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.filtro-etiqueta {
+  font-family: var(--font-ui);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--tx-3);
+  padding-top: 0.35rem;
+  min-width: 5.5rem;
+  flex-shrink: 0;
+}
+
+.filtro-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+/* Generic pill */
+.pill {
+  padding: 0.22rem 0.65rem;
+  min-height: 28px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  color: var(--tx-2);
+  font-family: var(--font-ui);
+  font-size: 0.71rem;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.14s, border-color 0.14s, color 0.14s;
+  -webkit-tap-highlight-color: transparent;
+}
+.pill:hover { background: var(--bg-3); color: var(--tx-1); }
+.pill:active { transform: scale(0.96); }
+
+/* Category active pill — blue */
+.pill.active {
+  background: var(--blue-dim);
+  border-color: rgba(88, 166, 255, 0.4);
+  color: var(--blue);
+  font-weight: 600;
+}
+
+/* Difficulty overrides */
+.pill[data-dif="facil"].active {
+  background: var(--green-dim);
+  border-color: rgba(63, 185, 80, 0.4);
+  color: var(--green);
+}
+.pill[data-dif="normal"].active {
+  background: rgba(210, 153, 34, 0.1);
+  border-color: rgba(210, 153, 34, 0.4);
+  color: var(--gold);
+}
+.pill[data-dif="dificil"].active,
+.pill.pill-hard.active {
+  background: var(--red-dim);
+  border-color: rgba(248, 81, 73, 0.4);
+  color: var(--red);
+}
+
+/* Pool count */
+.pool-count {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--tx-3);
+  padding-left: calc(5.5rem + 0.6rem); /* align under pills */
+}
+.pool-count span { color: var(--tx-2); }
+
+/* ── Difficulty badge (in-game) ─────────────────────────────────── */
+.badge-dificultad {
+  padding: 0.2rem 0.6rem;
+  border-radius: 20px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.badge-dificultad.facil   { background: var(--green-dim); border: 1px solid rgba(63,185,80,.25); color: var(--green); }
+.badge-dificultad.normal  { background: rgba(210,153,34,.1); border: 1px solid rgba(210,153,34,.25); color: var(--gold); }
+.badge-dificultad.dificil { background: var(--red-dim);   border: 1px solid rgba(248,81,73,.25);  color: var(--red); }
+
+/* ── Toast ──────────────────────────────────────────────────────── */
+.toast {
+  position: fixed;
+  bottom: calc(1.25rem + env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%) translateY(12px);
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  color: var(--tx-1);
+  padding: 0.5rem 1.2rem;
+  border-radius: var(--r);
+  font-size: 0.82rem;
+  font-family: var(--font-ui);
+  opacity: 0;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 500;
+  transition: opacity 0.22s ease, transform 0.22s ease;
+}
+.toast.visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
 /* ── Responsive ─────────────────────────────────────────────────── */
 
 /* Tablet & up: show sub-label */

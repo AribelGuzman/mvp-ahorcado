@@ -1,12 +1,12 @@
 /**
- * game.js — Ahorcado Web · Lógica principal
+ * game.js — Ahorcado Web · v2.0
  *
- * Arquitectura:
- *  · Estado inmutable en el objeto `E`
- *  · render() se llama tras cada cambio de estado
- *  · El teclado virtual se construye una vez; sólo se actualizan clases
- *  · SVG hangman: pathLength=100 + stroke-dashoffset para animación de dibujo
- *  · Web Audio API para feedback sonoro sin archivos externos
+ * Novedades:
+ *  · Selector de categorías (generado dinámicamente desde PALABRAS)
+ *  · Niveles de dificultad: Fácil ≤6 · Normal 7-9 · Difícil ≥10
+ *  · Pool filtrado en tiempo real; badge de palabras disponibles
+ *  · Badge de dificultad in-game junto a la categoría
+ *  · Toast notification cuando el filtro no produce palabras
  */
 
 import { PALABRAS } from './palabras.js';
@@ -16,19 +16,33 @@ import { PALABRAS } from './palabras.js';
 // ────────────────────────────────────────────────────────────────
 
 const MAX_ERRORES = 6;
+const PARTES_SVG  = ['p-head', 'p-body', 'p-arl', 'p-arr', 'p-legl', 'p-legr'];
 
-/** IDs de los elementos SVG del monigote, en orden de aparición. */
-const PARTES_SVG = ['p-head', 'p-body', 'p-arl', 'p-arr', 'p-legl', 'p-legr'];
+/** Definición de niveles de dificultad por longitud normalizada. */
+const DIFICULTAD = {
+  todas:   { label: 'Todas',   test: ()           => true     },
+  facil:   { label: 'Fácil',   test: len => len  <= 6         },
+  normal:  { label: 'Normal',  test: len => len  >= 7 && len <= 9 },
+  dificil: { label: 'Difícil', test: len => len  >= 10        },
+};
 
 // ────────────────────────────────────────────────────────────────
 //  Estado
 // ────────────────────────────────────────────────────────────────
 
+/** Filtros activos — persisten entre partidas. */
+const F = {
+  categoria: 'Todas',
+  dificultad: 'todas',
+};
+
+/** Estado de la partida activa. */
 const E = {
-  palabra:       '',   // normalizada (sin tildes, mayúsculas)
-  original:      '',   // con tildes para mostrar al final
+  palabra:       '',
+  original:      '',
   pista:         '',
   categoria:     '',
+  longitud:      0,
   adivinadas:    new Set(),
   errores:       0,
   pistaMostrada: false,
@@ -38,33 +52,49 @@ const E = {
 };
 
 // ────────────────────────────────────────────────────────────────
-//  Utilidades DOM
+//  Utilidades
 // ────────────────────────────────────────────────────────────────
 
 const q = id => document.getElementById(id);
-
-// ────────────────────────────────────────────────────────────────
-//  Normalización
-// ────────────────────────────────────────────────────────────────
 
 function normalizar(str) {
   return str
     .toUpperCase()
     .normalize('NFD')
-    .replace(/\p{Mn}/gu, '')   // elimina diacríticos
+    .replace(/\p{Mn}/gu, '')
     .replace(/[^A-Z]/g, '');
 }
 
+/** Devuelve el nivel de dificultad de una palabra normalizada. */
+function nivelDePalabra(normalised) {
+  const len = normalised.length;
+  if (len <= 6)  return 'facil';
+  if (len <= 9)  return 'normal';
+  return 'dificil';
+}
+
 // ────────────────────────────────────────────────────────────────
-//  Audio (Web Audio API — sin archivos externos)
+//  Pool filtrado
+// ────────────────────────────────────────────────────────────────
+
+function filtrarPool() {
+  const difFn = DIFICULTAD[F.dificultad].test;
+  return PALABRAS.filter(p => {
+    const matchCat = F.categoria === 'Todas' || p.categoria === F.categoria;
+    const matchDif = difFn(normalizar(p.palabra).length);
+    return matchCat && matchDif;
+  });
+}
+
+// ────────────────────────────────────────────────────────────────
+//  Audio
 // ────────────────────────────────────────────────────────────────
 
 let _actx = null;
-
-function actx() {
+const actx = () => {
   if (!_actx) _actx = new (window.AudioContext || window.webkitAudioContext)();
   return _actx;
-}
+};
 
 function tone(freq, dur, type = 'sine', vol = 0.1) {
   try {
@@ -79,32 +109,48 @@ function tone(freq, dur, type = 'sine', vol = 0.1) {
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
     osc.start(ctx.currentTime);
     osc.stop(ctx.currentTime + dur);
-  } catch (_) { /* silently degrade if Web Audio not available */ }
+  } catch (_) {}
 }
 
 const sfx = {
   correcto:   () => { tone(880, 0.09); setTimeout(() => tone(1108, 0.12), 75); },
   incorrecto: () => tone(160, 0.22, 'sawtooth', 0.07),
-  victoria:   () => {
-    [[523,0],[659,100],[784,200],[1047,320]].forEach(([f,d]) =>
-      setTimeout(() => tone(f, 0.18), d));
-  },
-  derrota:    () => {
-    [[440,0],[349,200],[294,400],[220,650]].forEach(([f,d]) =>
-      setTimeout(() => tone(f, 0.28, 'square', 0.07), d));
-  },
+  victoria:   () => [[523,0],[659,100],[784,200],[1047,320]].forEach(([f,d]) => setTimeout(() => tone(f, 0.18), d)),
+  derrota:    () => [[440,0],[349,200],[294,400],[220,650]].forEach(([f,d]) => setTimeout(() => tone(f, 0.28, 'square', 0.07), d)),
 };
+
+// ────────────────────────────────────────────────────────────────
+//  Toast
+// ────────────────────────────────────────────────────────────────
+
+let _toastTimer = null;
+
+function toast(msg) {
+  const el = q('toast');
+  el.textContent = msg;
+  el.classList.add('visible');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => el.classList.remove('visible'), 2800);
+}
 
 // ────────────────────────────────────────────────────────────────
 //  Lógica del juego
 // ────────────────────────────────────────────────────────────────
 
 function nuevaPartida() {
-  const entry     = PALABRAS[Math.floor(Math.random() * PALABRAS.length)];
+  let pool = filtrarPool();
+
+  if (pool.length === 0) {
+    toast(`Sin palabras para "${DIFICULTAD[F.dificultad].label}" en "${F.categoria}" — mostrando todas`);
+    pool = PALABRAS;
+  }
+
+  const entry     = pool[Math.floor(Math.random() * pool.length)];
   E.original      = entry.palabra.toUpperCase();
   E.palabra       = normalizar(entry.palabra);
   E.pista         = entry.pista;
   E.categoria     = entry.categoria;
+  E.longitud      = E.palabra.length;
   E.adivinadas    = new Set();
   E.errores       = 0;
   E.pistaMostrada = false;
@@ -112,14 +158,12 @@ function nuevaPartida() {
 
   ocultarOverlay();
   resetTeclado();
-  renderizar(true /* nueva partida */);
+  renderizar(true);
   activarTeclado();
 }
 
 function adivinar(letra) {
-  if (E.gameOver)              return;
-  if (E.adivinadas.has(letra)) return;
-
+  if (E.gameOver || E.adivinadas.has(letra)) return;
   E.adivinadas.add(letra);
 
   if (E.palabra.includes(letra)) {
@@ -127,10 +171,9 @@ function adivinar(letra) {
   } else {
     E.errores++;
     sfx.incorrecto();
-    // Shake the word row on wrong guess
     const wd = q('palabra-display');
     wd.classList.remove('wrong-shake');
-    void wd.offsetWidth; // force reflow to restart animation
+    void wd.offsetWidth;
     wd.classList.add('wrong-shake');
   }
 
@@ -141,16 +184,13 @@ function adivinar(letra) {
 function comprobarFin() {
   const ganado  = [...E.palabra].every(l => E.adivinadas.has(l));
   const perdido = E.errores >= MAX_ERRORES;
-
   if (ganado) {
-    E.gameOver = true;
-    E.victorias++;
+    E.gameOver = true; E.victorias++;
     desactivarTeclado();
     sfx.victoria();
     setTimeout(() => mostrarOverlay('victoria'), 420);
   } else if (perdido) {
-    E.gameOver = true;
-    E.derrotas++;
+    E.gameOver = true; E.derrotas++;
     desactivarTeclado();
     sfx.derrota();
     setTimeout(() => mostrarOverlay('derrota'), 600);
@@ -170,20 +210,16 @@ function renderizar(esNuevaPartida = false) {
   renderizarVidas();
   renderizarPista();
   renderizarAccesibilidad();
+  renderizarPoolCount();
 }
 
 /* SVG Hangman ---------------------------------------------------- */
 function renderizarSVG() {
   const svg   = q('hangman-svg');
   const frame = svg.closest('.horca-frame');
-
-  PARTES_SVG.forEach((id, i) => {
-    q(id).classList.toggle('visible', i < E.errores);
-  });
-
+  PARTES_SVG.forEach((id, i) => q(id).classList.toggle('visible', i < E.errores));
   const muerto  = E.errores >= MAX_ERRORES;
   const peligro = (MAX_ERRORES - E.errores) === 1 && !muerto;
-
   svg.classList.toggle('dead', muerto);
   frame.classList.toggle('danger', peligro);
 }
@@ -192,7 +228,6 @@ function renderizarSVG() {
 function renderizarPalabra(esNuevaPartida = false) {
   const c = q('palabra-display');
   c.innerHTML = '';
-
   for (const l of E.palabra) {
     const span = document.createElement('span');
     span.className = 'caja-letra';
@@ -202,14 +237,10 @@ function renderizarPalabra(esNuevaPartida = false) {
     }
     c.appendChild(span);
   }
-
-  // Stagger entrance animation on new game
   if (esNuevaPartida) {
     c.classList.add('entering');
     const slots = c.querySelectorAll('.caja-letra');
-    slots.forEach((el, i) => {
-      el.style.animationDelay = `${i * 35}ms`;
-    });
+    slots.forEach((el, i) => { el.style.animationDelay = `${i * 35}ms`; });
     c.addEventListener('animationend', () => {
       c.classList.remove('entering');
       slots.forEach(el => { el.style.animationDelay = ''; });
@@ -217,21 +248,24 @@ function renderizarPalabra(esNuevaPartida = false) {
   }
 }
 
-/* Category + length --------------------------------------------- */
+/* Category + difficulty badge + length --------------------------- */
 function renderizarMeta() {
   q('categoria-display').textContent = E.categoria;
-  q('longitud-display').textContent  = `${E.palabra.length} letras`;
+
+  const nivel = nivelDePalabra(E.palabra);
+  const badge = q('dificultad-display');
+  badge.textContent = DIFICULTAD[nivel].label;
+  badge.className   = `badge-dificultad ${nivel}`;
+
+  q('longitud-display').textContent = `${E.longitud} letras`;
 }
 
-/* Hint area ------------------------------------------------------ */
+/* Hint ----------------------------------------------------------- */
 function renderizarPista() {
   const area = q('pista-area');
-
   if (E.pistaMostrada) {
-    // Remove old listener if any
     const old = q('btn-pista');
     if (old) old.removeEventListener('click', _pistaCb);
-
     area.innerHTML = `<p class="pista-texto" role="status" aria-live="polite">${E.pista}</p>`;
   } else {
     area.innerHTML = `<button id="btn-pista" class="btn-pista"
@@ -241,11 +275,7 @@ function renderizarPista() {
     q('btn-pista').addEventListener('click', _pistaCb, { once: true });
   }
 }
-
-function _pistaCb() {
-  E.pistaMostrada = true;
-  renderizarPista();
-}
+function _pistaCb() { E.pistaMostrada = true; renderizarPista(); }
 
 /* Score ---------------------------------------------------------- */
 function renderizarMarcador() {
@@ -257,16 +287,13 @@ function renderizarMarcador() {
 function renderizarVidas() {
   const restantes = MAX_ERRORES - E.errores;
   q('vidas-bar').innerHTML = Array.from({ length: MAX_ERRORES }, (_, i) => {
-    const isLast    = i === restantes - 1 && restantes === 1;
-    const cls       = i < restantes
-      ? (isLast ? 'vida danger-pip' : 'vida viva')
-      : 'vida perdida';
-    const ariaLabel = `vida ${i + 1} de ${MAX_ERRORES}: ${i < restantes ? 'activa' : 'perdida'}`;
-    return `<span class="${cls}" aria-label="${ariaLabel}"></span>`;
+    const isLast = i === restantes - 1 && restantes === 1;
+    const cls    = i < restantes ? (isLast ? 'vida danger-pip' : 'vida viva') : 'vida perdida';
+    return `<span class="${cls}" aria-label="vida ${i+1} de ${MAX_ERRORES}: ${i<restantes?'activa':'perdida'}"></span>`;
   }).join('');
 }
 
-/* Accessibility -------------------------------------------------- */
+/* Accessibility live region ------------------------------------- */
 function renderizarAccesibilidad() {
   const restantes = MAX_ERRORES - E.errores;
   const reveladas = [...E.palabra].filter(l => E.adivinadas.has(l)).length;
@@ -276,11 +303,24 @@ function renderizarAccesibilidad() {
     `Vidas restantes: ${restantes}.`;
 }
 
+/* Pool count label ----------------------------------------------- */
+function renderizarPoolCount() {
+  const n   = filtrarPool().length;
+  const total = PALABRAS.length;
+  const el  = q('pool-count');
+
+  if (F.categoria === 'Todas' && F.dificultad === 'todas') {
+    el.textContent = '';
+  } else {
+    el.innerHTML = `<span>${n}</span> de ${total} palabras con estos filtros`;
+    if (n === 0) el.innerHTML += ' — <em>se mostrarán todas</em>';
+  }
+}
+
 // ────────────────────────────────────────────────────────────────
 //  Teclado virtual
 // ────────────────────────────────────────────────────────────────
 
-/** Construye el teclado una sola vez en DOMContentLoaded. */
 function construirTeclado() {
   const c = q('teclado');
   for (let i = 65; i <= 90; i++) {
@@ -295,35 +335,82 @@ function construirTeclado() {
   }
 }
 
-/** Actualiza sólo las clases/disabled de cada tecla (sin reconstruir). */
 function renderizarTecladoEstado() {
   for (let i = 65; i <= 90; i++) {
     const l   = String.fromCharCode(i);
     const btn = q(`key-${l}`);
     if (!btn) continue;
-
     const usada    = E.adivinadas.has(l);
     const correcta = usada && E.palabra.includes(l);
-
     btn.disabled  = usada;
     btn.className = 'tecla' + (usada ? (correcta ? ' correcta' : ' incorrecta') : '');
     btn.setAttribute('aria-label',
-      usada
-        ? `Letra ${l} — ${correcta ? 'correcta' : 'incorrecta'}`
-        : `Letra ${l}`
-    );
+      usada ? `Letra ${l} — ${correcta ? 'correcta' : 'incorrecta'}` : `Letra ${l}`);
   }
 }
 
-/** Resetea todas las teclas a estado inicial (nueva partida). */
 function resetTeclado() {
   for (let i = 65; i <= 90; i++) {
-    const btn = q(`key-${String.fromCharCode(i)}`);
+    const l   = String.fromCharCode(i);
+    const btn = q(`key-${l}`);
     if (!btn) continue;
     btn.className = 'tecla';
     btn.disabled  = false;
-    btn.setAttribute('aria-label', `Letra ${String.fromCharCode(i)}`);
+    btn.setAttribute('aria-label', `Letra ${l}`);
   }
+}
+
+// ────────────────────────────────────────────────────────────────
+//  Filtros
+// ────────────────────────────────────────────────────────────────
+
+/** Construye los pills de categoría a partir de las categorías presentes en PALABRAS. */
+function construirFiltroCategorias() {
+  const categorias = ['Todas', ...new Set(PALABRAS.map(p => p.categoria)).values()].sort(
+    (a, b) => a === 'Todas' ? -1 : b === 'Todas' ? 1 : a.localeCompare(b, 'es')
+  );
+
+  const c = q('filtro-cat');
+  for (const cat of categorias) {
+    const btn = document.createElement('button');
+    btn.className   = 'pill' + (cat === F.categoria ? ' active' : '');
+    btn.textContent = cat;
+    btn.setAttribute('aria-pressed', String(cat === F.categoria));
+    btn.addEventListener('click', () => seleccionarCategoria(cat));
+    c.appendChild(btn);
+  }
+}
+
+function seleccionarCategoria(cat) {
+  if (F.categoria === cat) return;
+  F.categoria = cat;
+  _sincronizarPillsCat();
+  renderizarPoolCount();
+  nuevaPartida();
+}
+
+function _sincronizarPillsCat() {
+  q('filtro-cat').querySelectorAll('.pill').forEach(btn => {
+    const activa = btn.textContent === F.categoria;
+    btn.classList.toggle('active', activa);
+    btn.setAttribute('aria-pressed', String(activa));
+  });
+}
+
+function seleccionarDificultad(dif) {
+  if (F.dificultad === dif) return;
+  F.dificultad = dif;
+  _sincronizarPillsDif();
+  renderizarPoolCount();
+  nuevaPartida();
+}
+
+function _sincronizarPillsDif() {
+  q('filtro-dif').querySelectorAll('.pill').forEach(btn => {
+    const activa = btn.dataset.dif === F.dificultad;
+    btn.classList.toggle('active', activa);
+    btn.setAttribute('aria-pressed', String(activa));
+  });
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -332,16 +419,12 @@ function resetTeclado() {
 
 function mostrarOverlay(tipo) {
   const card = q('overlay-card');
-
-  q('overlay-emoji').textContent  = tipo === 'victoria' ? '🎉' : '💀';
-  q('overlay-titulo').textContent = tipo === 'victoria' ? '¡Ganaste!' : '¡Game Over!';
+  q('overlay-emoji').textContent   = tipo === 'victoria' ? '🎉' : '💀';
+  q('overlay-titulo').textContent  = tipo === 'victoria' ? '¡Ganaste!' : '¡Game Over!';
   q('overlay-palabra').textContent = E.original;
   q('overlay-pista').textContent   = tipo === 'derrota' ? E.pista : '';
-
   card.className = `overlay-card ${tipo === 'victoria' ? 'win-card' : 'lose-card'}`;
   q('overlay').hidden = false;
-
-  // Trap focus inside overlay
   q('btn-reiniciar').focus();
 }
 
@@ -355,32 +438,21 @@ function ocultarOverlay() {
 
 function onKeyDown(e) {
   if (e.repeat || e.ctrlKey || e.altKey || e.metaKey) return;
-
   const letra = normalizar(e.key);
   if (letra.length !== 1 || !/[A-Z]/.test(letra)) return;
-
-  // Flash the virtual key for visual feedback
   const btn = q(`key-${letra}`);
   if (btn && !btn.disabled) {
     btn.classList.add('physical-press');
     setTimeout(() => btn.classList.remove('physical-press'), 180);
   }
-
   adivinar(letra);
 }
 
 function activarTeclado()    { document.addEventListener('keydown', onKeyDown); }
 function desactivarTeclado() { document.removeEventListener('keydown', onKeyDown); }
 
-// ────────────────────────────────────────────────────────────────
-//  Focus trap in overlay (Tab + Shift+Tab stay inside)
-// ────────────────────────────────────────────────────────────────
-
 function onOverlayKeyDown(e) {
-  if (e.key !== 'Tab') return;
-  // Only one focusable element (btn-reiniciar), so just cancel tab
-  e.preventDefault();
-  q('btn-reiniciar').focus();
+  if (e.key === 'Tab') { e.preventDefault(); q('btn-reiniciar').focus(); }
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -388,8 +460,19 @@ function onOverlayKeyDown(e) {
 // ────────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
+  // Build static elements
   construirTeclado();
+  construirFiltroCategorias();
+
+  // Wire difficulty pills (static in HTML)
+  q('filtro-dif').querySelectorAll('.pill').forEach(btn => {
+    btn.addEventListener('click', () => seleccionarDificultad(btn.dataset.dif));
+  });
+
+  // Wire overlay
   q('btn-reiniciar').addEventListener('click', nuevaPartida);
   q('overlay').addEventListener('keydown', onOverlayKeyDown);
+
+  // Start
   nuevaPartida();
 });
