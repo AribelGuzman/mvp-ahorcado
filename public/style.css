@@ -1,0 +1,359 @@
+/* ═══════════════════════════════════════════════════════════════
+   style.css — Ahorcado Web · Estética de terminal
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Variables ─────────────────────────────────────────────────── */
+:root {
+  --bg:          #0a0a0a;
+  --surface:     #111111;
+  --surface-2:   #161616;
+  --border:      #242424;
+  --text:        #c8c8c8;
+  --text-dim:    #4a4a4a;
+  --gallows:     #f5c518;
+  --cuerpo:      #e0e0e0;
+  --correcto:    #39ff14;
+  --incorrecto:  #ff3333;
+  --pista:       #bf00ff;
+  --acento:      #00d4ff;
+  --font:        'Courier New', 'Lucida Console', Consolas, monospace;
+}
+
+/* ── Reset ─────────────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.4;
+}
+
+/* ── Layout principal ──────────────────────────────────────────── */
+#app {
+  max-width: 860px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 1.2rem 1rem;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+}
+
+/* ── Cabecera ──────────────────────────────────────────────────── */
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.8rem;
+}
+
+h1 {
+  font-size: clamp(1rem, 3.5vw, 1.4rem);
+  letter-spacing: 0.3em;
+  color: var(--acento);
+  text-shadow: 0 0 18px rgba(0, 212, 255, 0.45);
+}
+
+#marcador {
+  display: flex;
+  gap: 1.2rem;
+  font-size: 0.9rem;
+}
+
+.puntos-v { color: var(--correcto); }
+.puntos-d { color: var(--incorrecto); }
+
+/* ── Cuerpo del juego (dos columnas) ───────────────────────────── */
+main {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2rem;
+  align-items: start;
+}
+
+/* ── Sección horca ─────────────────────────────────────────────── */
+#horca-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+/* Monigote ASCII */
+#monigote {
+  font-size: 1.05rem;
+  line-height: 1.6;
+  white-space: pre;
+  color: var(--gallows);
+  text-shadow: 0 0 8px rgba(245, 197, 24, 0.35);
+  transition: color 0.35s ease, text-shadow 0.35s ease;
+  user-select: none;
+  padding: 0.25rem;
+}
+
+#monigote.muerto {
+  color: var(--incorrecto);
+  text-shadow: 0 0 14px rgba(255, 51, 51, 0.55);
+  animation: sacudir 0.45s ease-in-out;
+}
+
+@keyframes sacudir {
+  0%, 100% { transform: translateX(0); }
+  20%       { transform: translateX(-5px); }
+  40%       { transform: translateX(5px); }
+  60%       { transform: translateX(-5px); }
+  80%       { transform: translateX(5px); }
+}
+
+/* Barra de vidas */
+#vidas-bar {
+  display: flex;
+  gap: 5px;
+}
+
+.vida {
+  font-size: 1.1rem;
+  transition: color 0.3s, text-shadow 0.3s;
+}
+
+.vida.viva {
+  color: var(--correcto);
+  text-shadow: 0 0 6px rgba(57, 255, 20, 0.5);
+}
+
+.vida.perdida { color: var(--border); }
+
+/* ── Sección información ────────────────────────────────────────── */
+#info-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+  justify-content: center;
+  padding-top: 0.4rem;
+}
+
+/* Categoría */
+#categoria-display {
+  font-size: 0.72rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+/* Palabra oculta */
+#palabra-display {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.caja-letra {
+  display: inline-flex;
+  align-items: flex-end;
+  justify-content: center;
+  width: 30px;
+  height: 38px;
+  border-bottom: 2px solid var(--text-dim);
+  font-size: 1.2rem;
+  font-weight: bold;
+  color: transparent;
+  transition: color 0.25s, border-color 0.25s;
+}
+
+.caja-letra.revelada {
+  color: var(--correcto);
+  border-color: var(--correcto);
+  text-shadow: 0 0 8px rgba(57, 255, 20, 0.5);
+  animation: aparecer 0.2s ease-out;
+}
+
+@keyframes aparecer {
+  from { transform: translateY(-4px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+#longitud-display {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  margin-top: -0.5rem;
+}
+
+/* Pista */
+.btn-pista {
+  background: transparent;
+  border: 1px solid var(--pista);
+  color: var(--pista);
+  padding: 0.35rem 0.9rem;
+  font-family: var(--font);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background 0.2s;
+  letter-spacing: 0.05em;
+}
+
+.btn-pista:hover { background: rgba(191, 0, 255, 0.12); }
+
+.pista-texto {
+  color: var(--pista);
+  font-size: 0.85rem;
+  line-height: 1.5;
+  max-width: 360px;
+}
+
+/* ── Teclado ────────────────────────────────────────────────────── */
+#teclado {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  justify-content: center;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.tecla {
+  width: 34px;
+  height: 34px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+
+.tecla:hover:not(:disabled) {
+  background: var(--surface-2);
+  border-color: var(--acento);
+  color: var(--acento);
+}
+
+.tecla:active:not(:disabled) {
+  transform: scale(0.92);
+}
+
+.tecla.correcta {
+  background: rgba(57, 255, 20, 0.12);
+  border-color: var(--correcto);
+  color: var(--correcto);
+}
+
+.tecla.incorrecta {
+  background: rgba(255, 51, 51, 0.07);
+  border-color: #2a2a2a;
+  color: #333;
+}
+
+.tecla:disabled { cursor: default; }
+
+/* ── Overlay fin de partida ─────────────────────────────────────── */
+#mensaje-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.82);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(5px);
+  z-index: 100;
+  animation: fadeIn 0.3s ease;
+}
+
+#mensaje-overlay[hidden] { display: none; }
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+#mensaje-caja {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 2rem 2.8rem;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 280px;
+  animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+#mensaje-titulo {
+  font-size: clamp(1.5rem, 5vw, 2rem);
+  letter-spacing: 0.05em;
+}
+
+#mensaje-titulo.victoria { color: var(--correcto); text-shadow: 0 0 20px rgba(57, 255, 20, 0.4); }
+#mensaje-titulo.derrota  { color: var(--incorrecto); }
+
+#mensaje-texto {
+  color: var(--text);
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+#mensaje-texto strong { color: var(--acento); font-size: 1rem; }
+#mensaje-texto em     { color: var(--text-dim); font-style: normal; }
+
+#btn-reiniciar {
+  background: transparent;
+  border: 1px solid var(--acento);
+  color: var(--acento);
+  padding: 0.55rem 1.4rem;
+  font-family: var(--font);
+  font-size: 0.9rem;
+  cursor: pointer;
+  letter-spacing: 0.1em;
+  transition: background 0.2s;
+}
+
+#btn-reiniciar:hover { background: rgba(0, 212, 255, 0.1); }
+
+/* ── Responsivo ─────────────────────────────────────────────────── */
+@media (max-width: 580px) {
+  main {
+    grid-template-columns: 1fr;
+  }
+
+  #horca-section {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 1.2rem;
+  }
+
+  #monigote { font-size: 0.9rem; }
+
+  .caja-letra {
+    width: 24px;
+    height: 32px;
+    font-size: 1rem;
+  }
+
+  .tecla {
+    width: 28px;
+    height: 28px;
+    font-size: 0.75rem;
+  }
+
+  #mensaje-caja { padding: 1.5rem 1.8rem; }
+}

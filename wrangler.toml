@@ -1,0 +1,10 @@
+# ── Cloudflare Workers — Ahorcado ────────────────────────────────
+name            = "mvp-ahorcado"
+main            = "src/worker.js"
+compatibility_date = "2024-09-23"
+
+# Sirve los archivos estáticos de /public.
+# El binding ASSETS queda disponible en el Worker como env.ASSETS.
+[assets]
+directory = "./public"
+binding   = "ASSETS"

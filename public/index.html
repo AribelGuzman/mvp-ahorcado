@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Juego del Ahorcado en español — 50 palabras con pistas">
+  <title>🎭 Ahorcado</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+
+    <!-- ── Cabecera ──────────────────────────────────────────── -->
+    <header>
+      <h1>🎭&nbsp;AHORCADO</h1>
+      <div id="marcador" aria-label="Marcador">
+        <span class="puntos-v" aria-label="Victorias">✔&thinsp;<span id="victorias">0</span></span>
+        <span class="puntos-d" aria-label="Derrotas">✘&thinsp;<span id="derrotas">0</span></span>
+      </div>
+    </header>
+
+    <!-- ── Juego ─────────────────────────────────────────────── -->
+    <main aria-label="Tablero de juego">
+
+      <!-- Horca + vidas -->
+      <section id="horca-section" aria-label="Monigote">
+        <pre id="monigote" aria-live="polite" aria-label="Estado del ahorcado"></pre>
+        <div id="vidas-bar" aria-label="Vidas restantes"></div>
+      </section>
+
+      <!-- Info: categoría, palabra, pista -->
+      <section id="info-section" aria-label="Información de la palabra">
+        <p id="categoria-display" class="categoria"></p>
+        <div id="palabra-display" aria-label="Letras de la palabra" role="group"></div>
+        <p id="longitud-display"></p>
+        <div id="pista-area"></div>
+      </section>
+
+    </main>
+
+    <!-- ── Teclado virtual ───────────────────────────────────── -->
+    <div id="teclado" role="group" aria-label="Teclado de letras"></div>
+
+    <!-- ── Mensaje fin de partida ────────────────────────────── -->
+    <div id="mensaje-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="mensaje-titulo">
+      <div id="mensaje-caja">
+        <h2 id="mensaje-titulo"></h2>
+        <p  id="mensaje-texto"></p>
+        <button id="btn-reiniciar">↺&ensp;Jugar de nuevo</button>
+      </div>
+    </div>
+
+  </div>
+
+  <script type="module" src="game.js"></script>
+</body>
+</html>
