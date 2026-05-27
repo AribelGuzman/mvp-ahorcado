@@ -2,6 +2,7 @@
 name            = "mvp-ahorcado"
 main            = "src/worker.js"
 compatibility_date = "2024-09-23"
+account_id      = "b23089c34eb9d507784420b66468ae18"
 
 # Sirve los archivos estáticos de /public.
 # El binding ASSETS queda disponible en el Worker como env.ASSETS.
